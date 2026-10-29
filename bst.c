@@ -26,6 +26,7 @@ void init_bst(bst *tree) {
 // create a new node (assumes its at bottom of tree)
 Node* create_node(char *k, int v) {
 	Node *new = malloc(sizeof(Node));
+	if (new == NULL) return NULL;
 	
 	new->key = k;
 	new->value = v;
@@ -39,7 +40,7 @@ Node* create_node(char *k, int v) {
 int real_lookup(Node *start, char *to_find) {
 	if (start == NULL) {
 		printf("key not found in tree\n");
-		return 0;
+		return -999999;
 	}
 	
 	int comparison = strcmp(to_find, start->key);
@@ -49,7 +50,7 @@ int real_lookup(Node *start, char *to_find) {
 	else if (comparison > 0) return real_lookup(start->right, to_find);
 	else {
 		printf("i love writing error messages for cases that should theoretically never happen");
-		return 0;
+		return -999999;
 	}
 }
 
@@ -57,7 +58,7 @@ int real_lookup(Node *start, char *to_find) {
 int lookup(bst *tree, char *to_find) {
 	if (tree == NULL || tree->root == NULL) {
 		printf("try actually putting something in the tree before looking for it dumbass\n");
-		return 0;
+		return -999999;
 	}
 	return real_lookup(tree->root, to_find);
 }
@@ -72,25 +73,6 @@ Node* find_node(Node *start, char *to_find) {
 	else if (comparison < 0) return find_node(start->left, to_find);
 	else if (comparison > 0) return find_node(start->right, to_find);
 	else return NULL; // go away stupid warning
-}
-
-// main add function that recursively finds place in tree to add node at
-Node* real_add(Node *start, char *k, int v) {
-	if (start == NULL) return create_node(k, v);
-	
-	int comparison = strcmp(k, start->key);
-	if (comparison < 0) start->left = real_add(start->left, k, v);
-	else if (comparison > 0) start->right = real_add(start->right, k, v);
-	else if (comparison == 0) start->value = v; // if node found with same key, update value
-	else printf("kai is smart");
-	
-	return start;
-}
-
-// adds a new k:v pair to the tree
-void add(bst *tree, char *k, int v) {
-	if (tree == NULL) return;
-	tree->root = real_add(tree->root, k, v);
 }
 
 // function that counts the number of nodes past (and including) a certain node
@@ -168,7 +150,7 @@ Node* find_parent(Node *start, char* k) {
 	Node *parent = NULL;
 	Node *current = start;
 	
-	while (current != NULL && current->key != k) {
+	while (current != NULL && strcmp(current->key, k) != 0) {
 		parent = current;
 		int comparison = strcmp(k, current->key);
 		if (comparison < 0) current = current->left;
@@ -180,12 +162,50 @@ Node* find_parent(Node *start, char* k) {
 	return parent;
 }
 
+// main add function that recursively finds place in tree to add node at
+Node* real_add(Node *start, char *k, int v) {
+	if (start == NULL) return create_node(k, v);
+	
+	int comparison = strcmp(k, start->key);
+	if (comparison < 0) start->left = real_add(start->left, k, v);
+	else if (comparison > 0) start->right = real_add(start->right, k, v);
+	else if (comparison == 0) start->value = v; // if node found with same key, update value
+	else printf("kai is smart");
+	
+	return start;
+}
+
+// adds a new k:v pair to the tree
+void add(bst *tree, char *k, int v, int check_balance) {
+	if (tree == NULL) return;
+	if (tree->root == NULL) goto get_some_nodes_in_this_tree_right_now;
+	
+	// rebalance tree if its very inefficient (and if user asked to)
+	if (check_balance == 1) {
+		int n = num_nodes(tree->root);
+		int depth = max_depth(tree);
+		int min_depth = ceil(log2(n));
+		if (n > 2 * min_depth) {
+			printf("rebalancing tree... may take a while if tree is big\n");
+			rebalance(tree);
+			printf("done!\n");
+		}
+	}
+	
+	get_some_nodes_in_this_tree_right_now:
+	;
+	tree->root = real_add(tree->root, k, v);
+}
+
 // main delete function that... wait, this one isn't actually recursive? surely it's not that complicated then... right? right?? right?!?!?!?
 void real_delete(Node *del, Node *parent) {
 	if (del == NULL) {
 		printf("imagine hating someone so much you try to kill them after they're already dead\n");
 		return;
 	}
+	
+	// case 0: deleting the root if the root has 2 children (skips to case 3)
+	if (parent == NULL) goto case3;
 	
 	int dir; // 1 if node is a left child of parent, 0 if node is a right child of parent
 	if (parent->left == del) dir = 1;
@@ -215,7 +235,11 @@ void real_delete(Node *del, Node *parent) {
 	}
 	
 	// case 3: 2 children, swap positions of child and its least valuable child thats still greater than original child and then kill original child (guys i don't think this analogy works very well)
+	case3:
+	; // i love c
+	
 	Node *heir = del->right;
+	if (heir == NULL) printf("???????????\n");
 	Node *heirs_parent = del;
 	while (heir->left != NULL) {
 		heirs_parent = heir;
@@ -231,12 +255,11 @@ void real_delete(Node *del, Node *parent) {
 void delete(bst *tree, char *k) {
 	if (tree == NULL || tree->root == NULL) return;
 	Node *to_delete = find_node(tree->root, k);
-	Node *p = find_parent(to_delete, k);
-	
 	if (to_delete == NULL) {
 		printf("no node with that key found\n");
 		return;
 	}
+	Node *p = find_parent(tree->root, k);
 	
 	// special case for deleting root if root doesn't have two children
 	if (to_delete == tree->root && (to_delete->left == NULL || to_delete->right == NULL)) {
@@ -244,6 +267,7 @@ void delete(bst *tree, char *k) {
 		else if (to_delete->left == NULL) tree->root = to_delete->right;
 		else if (to_delete->right == NULL) tree->root = to_delete->left;
 		free(to_delete);
+		return;
 	}
 	
 	else real_delete(to_delete, p);
@@ -261,6 +285,7 @@ void real_print_tree(Node *start) {
 // prints all nodes of a bst
 void print_tree(bst *tree) {
 	if (tree == NULL || tree->root == NULL) return;
+	printf("root of tree is: '%s'\n", tree->root->key);
 	real_print_tree(tree->root);
 }
 
@@ -283,65 +308,4 @@ void free_tree(bst *tree) {
 	if (tree == NULL || tree->root == NULL) return; // are you getting tired of seeing this exact if statement yet
 	real_free_tree(tree->root);
 	tree->root = NULL;
-}
-
-// function to test all my other functions and pray they all work correctly
-void test_bst() {
-	// initialize a new empty tree
-	bst test_tree;
-	init_bst(&test_tree);
-	
-	// looking for something in empty tree
-	print_value(&test_tree, "something");
-	
-	// adding stuff and occasionally testing lookup
-	add(&test_tree, "stuff", 69);
-	print_value(&test_tree, "stuff");
-	add(&test_tree, "uhhhh", 2);
-	add(&test_tree, "um", 82);
-	add(&test_tree, "i eat glass", 99999);
-	print_value(&test_tree, "i eat glass");
-	add(&test_tree, "i eat glass", 1);
-	add(&test_tree, "i eat gas", -0);
-	print_value(&test_tree, "i eat glass");
-	add(&test_tree, "-0", 1);
-	add(&test_tree, "no", 69);
-	print_value(&test_tree, "um");
-	
-	// looking for something that's not in tree
-	print_value(&test_tree, "something that's not in tree");
-	
-	// testing print function
-	printf("printing all nodes of tree: \n");
-	print_tree(&test_tree);
-	printf("done printing all nodes of tree\n");
-	
-	// counting amount of nodes in tree
-	printf("number of nodes in tree: %d\n", num_nodes(test_tree.root));
-	
-	// testing rebalance function
-	printf("current max depth: %d\n", max_depth(&test_tree));
-	rebalance(&test_tree);
-	printf("max depth after rebalance: %d\n", max_depth(&test_tree));
-	
-	// testing delete function
-	printf("current root is: %s\n", (test_tree.root)->key);
-	delete(&test_tree, "stuff");
-	delete(&test_tree, "i eat gas");
-	printf("deleted root. new root is: %s\n", (test_tree.root)->key);
-	printf("number of nodes in tree (should be 2 less than before): %d\n", num_nodes(test_tree.root));
-	
-	printf("printing all nodes of tree (again): \n");
-	print_tree(&test_tree);
-	printf("done printing all nodes of tree\n");
-	
-	free_tree(&test_tree);
-}
-
-int main() {
-	test_bst();
-	printf("zsh: segmentation fault  ./bst\n");
-	sleep(3);
-	printf("\n\njust kidding! it actually worked!\n");
-	return 0;
 }
