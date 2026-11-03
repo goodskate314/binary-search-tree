@@ -7,7 +7,7 @@
 
 #include "bst.c"
 
-int main() {
+void bst_test() {
 	// initialize a new empty tree
         bst test_tree;
         init_bst(&test_tree);
@@ -69,5 +69,9 @@ int main() {
         printf("done printing all nodes of tree\n");
 
         free_tree(&test_tree);
+}
+
+int main() {
+	bst_test();
 	return 0;
 }
